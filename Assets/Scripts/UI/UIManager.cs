@@ -1,25 +1,47 @@
-using UnityEngine;
-using UnityEngine.UI;
+// ==================== UIManager.cs ====================
 using TMPro;
+using UnityEngine;
 
+[DefaultExecutionOrder(-100)] // ����� �-UIManager ���� �����
 public class UIManager : MonoBehaviour
 {
-    [SerializeField] private TMP_Text scoreText;
-    [SerializeField] private TMP_Text levelText;
-    [SerializeField] private TMP_Text messageText;
+    public static UIManager Instance;
 
-    public void UpdateScore(int fallen)
+    public TextMeshProUGUI scoreText;
+    public TextMeshProUGUI levelText;
+    public TextMeshProUGUI messageText;
+
+    private void Awake()
     {
-        scoreText.text = $"Fallen: {fallen}";
+        Instance = this;
     }
 
-    public void UpdateLevel(int level)
+    public void SetLevel(int level)
     {
-        levelText.text = $"Level: {level + 1}";
+        if (levelText != null)
+            levelText.text = "Level: " + level;
+        ClearMessage();
+    }
+
+    public void SetScore(int fallen)
+    {
+        if (scoreText != null)
+            scoreText.text = "Fallen: " + fallen;
     }
 
     public void ShowMessage(string msg)
     {
-        messageText.text = msg;
+        if (messageText != null)
+            messageText.text = msg;
+    }
+
+    public void ClearMessage()
+    {
+        ShowMessage("");
+    }
+
+    public void ShowWin()
+    {
+        ShowMessage("YOU WON!");
     }
 }

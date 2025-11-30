@@ -1,30 +1,63 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class LevelManager : MonoBehaviour
 {
-    [SerializeField] private GameObject[] levelLayouts;
-    private GameObject currentLayoutInstance;
-    private BottleManager bottleManager;
-    public BottleManager BottleManager => bottleManager;
+    [Header("Level Prefabs")]
+    public GameObject level1Prefab;
+    public GameObject level2Prefab;
 
-    public int CurrentLevelIndex { get; private set; } = 0;
+    [Header("Spawn Point")]
+    public Transform bottleSpawnPoint;
 
+    [Header("Managers")]
+    public BottleManager bottleManager;
+
+    public int currentLevel = 1;
+    public int shotsUsed = 0;
+
+    private GameObject currentBottleSet;
+
+    // ================= LOAD LEVEL =================
     public void LoadLevel()
     {
-        Debug.Log($"LevelManager.LoadLevel: Loading level {CurrentLevelIndex}");
-        if (currentLayoutInstance != null)
-            Destroy(currentLayoutInstance);
+        if (currentBottleSet != null)
+            Destroy(currentBottleSet);
 
-        currentLayoutInstance = Instantiate(levelLayouts[CurrentLevelIndex]);
+        GameObject prefab = (currentLevel == 1) ? level1Prefab : level2Prefab;
 
-        bottleManager = currentLayoutInstance.GetComponentInChildren<BottleManager>(true);
+        currentBottleSet = Instantiate(
+            prefab,
+            bottleSpawnPoint.position,
+            bottleSpawnPoint.rotation
+        );
 
-        if (bottleManager == null)
-            Debug.LogError($"LevelManager.LoadLevel: no BottleManager found in layout {currentLayoutInstance.name}");
+        bottleManager.RegisterBottles(currentBottleSet);
+
+        shotsUsed = 0;
+
+        UIManager.Instance.SetLevel(currentLevel);
     }
 
-    public void NextLevel()
+    // ================= RECORD SHOT =================
+    public void RegisterThrow()
     {
-        CurrentLevelIndex = (CurrentLevelIndex + 1) % levelLayouts.Length;
+        shotsUsed++;
+    }
+
+    // ================= CHECK ATTEMPTS ==============
+    public bool HasMoreShots()
+    {
+        return shotsUsed < 2;
+    }
+
+    // ================= LEVEL CHECK =================
+    public bool IsLastLevel()
+    {
+        return currentLevel == 2;
+    }
+
+    public void AdvanceLevel()
+    {
+        currentLevel++;
     }
 }

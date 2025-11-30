@@ -1,96 +1,127 @@
+// ==================== BallController.cs ====================
 using UnityEngine;
-using UnityEngine.InputSystem;
-using System;
 
 public class BallController : MonoBehaviour
 {
-    [SerializeField] private Rigidbody rb;
-    [SerializeField] private float rollForce = 20f;
-    [SerializeField] private InputAction rollAction;
-    [SerializeField] private float velocityThreshold = 0.15f;         
-    [SerializeField] private float angularVelocityThreshold = 0.1f;    
-    [SerializeField] private float minTimeBeforeStop = 0.5f;
-    [SerializeField] private float stationaryDistanceThreshold = 0.02f; 
-    [SerializeField] private float minStationaryTime = 0.25f;  
+    [Header("Throw Settings")]
+    public float minForce = 5f;
+    public float maxForce = 20f;
+    public float chargeSpeed = 20f;
 
-    public event Action OnBallStopped;
+    [Header("Auto Stop Settings")]
+    public float stopAfterSeconds = 8f; // זמן עד שהכדור נעצר בכוח
 
-    private bool hasRolled = false;
-    private float rollTime;
-    private Vector3 lastPosition;
-    private float stationaryTime;
+    private float currentForce;
+    private bool isCharging = false;
+    private bool isLaunched = false;
+
+    private Rigidbody rb;
+    private Transform laneForwardPoint;
+    private Camera cam;
+
+    private Vector3 throwDirection;
+    private float autoStopTimer = 0f;
 
     private void Awake()
     {
-        if (rb == null)
-            rb = GetComponent<Rigidbody>();
-        lastPosition = transform.position;
+        rb = GetComponent<Rigidbody>();
+        cam = Camera.main;
     }
 
-    private void OnEnable()
+    public void Init(Transform forwardTarget)
     {
-        rollAction.Enable();
-    }
-
-    private void OnDisable()
-    {
-        rollAction.Disable();
+        laneForwardPoint = forwardTarget;
+        transform.position = forwardTarget.position;
+        transform.rotation = forwardTarget.rotation;
+        PrepareForIdle();
     }
 
     private void Update()
     {
-        if (!hasRolled && rollAction.WasPressedThisFrame())
-            RollBall();
-
-        if (hasRolled)
+        // אם הכדור כבר נזרק – רק סופרים זמן
+        if (isLaunched)
         {
-            float timeSinceRoll = Time.time - rollTime;
-            float velocity = rb != null ? rb.linearVelocity.magnitude : 0f;
-            float angular = rb != null ? rb.angularVelocity.magnitude : 0f;
+            autoStopTimer += Time.deltaTime;
+            return;
+        }
 
-            float moved = Vector3.Distance(transform.position, lastPosition);
-            if (moved <= stationaryDistanceThreshold)
-                stationaryTime += Time.deltaTime;
-            else
-                stationaryTime = 0f;
-            lastPosition = transform.position;
+        // לפני הזריקה – רק כשהוא קינמטי
+        if (!rb.isKinematic)
+            return;
 
-            Debug.Log($"[BallController.Update] time={timeSinceRoll:F2}s, vel={velocity:F3}, ang={angular:F3}, moved={moved:F4}, stationaryTime={stationaryTime:F2}");
+        UpdateAiming();
+        UpdateCharging();
+    }
 
-            bool lowVelocity = velocity < velocityThreshold;
-            bool lowAngular = angular < angularVelocityThreshold;
-            bool stationaryLongEnough = stationaryTime >= minStationaryTime;
-            bool sleeping = rb != null && rb.IsSleeping();
+    // ---------------- AIMING ----------------
+    private void UpdateAiming()
+    {
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
 
-            if (timeSinceRoll > minTimeBeforeStop || sleeping || (lowVelocity && stationaryLongEnough))
-            {
-                Debug.Log($"[BallController.Update] Ball stopped!");
-                hasRolled = false;
-                OnBallStopped?.Invoke();
-            }
+        if (Physics.Raycast(ray, out RaycastHit hit, 200f))
+        {
+            Vector3 dir = hit.point - transform.position;
+            dir.y = 0;
+            throwDirection = dir.normalized;
+        }
+        else
+        {
+            throwDirection = laneForwardPoint.forward;
         }
     }
 
-    private void RollBall()
+    // --------------- CHARGING & THROW --------
+    private void UpdateCharging()
     {
-        Debug.Log("[BallController.RollBall] Rolling ball");
-        if (rb != null)
+        if (Input.GetKeyDown(KeyCode.Space))
         {
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-            rb.AddForce(transform.forward * rollForce, ForceMode.Impulse);
+            isCharging = true;
+            currentForce = minForce;
         }
-        hasRolled = true;
-        rollTime = Time.time;
-        stationaryTime = 0f;
-        lastPosition = transform.position;
+
+        if (Input.GetKey(KeyCode.Space) && isCharging)
+        {
+            currentForce += chargeSpeed * Time.deltaTime;
+            currentForce = Mathf.Clamp(currentForce, minForce, maxForce);
+        }
+
+        if (Input.GetKeyUp(KeyCode.Space) && isCharging)
+        {
+            Launch();
+        }
     }
 
-    public void OnReset()
+    private void Launch()
     {
-        Debug.Log("[BallController.OnReset] Resetting controller");
-        hasRolled = false;
-        stationaryTime = 0f;
-        lastPosition = transform.position;
+        isCharging = false;
+        isLaunched = true;
+        autoStopTimer = 0f;
+
+        rb.isKinematic = false;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        rb.AddForce(throwDirection * currentForce, ForceMode.Impulse);
+
+        GameManager.Instance.OnBallLaunched();
+    }
+
+    // --------------- IDLE --------------------
+    public void PrepareForIdle()
+    {
+        isLaunched = false;
+        isCharging = false;
+
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        rb.isKinematic = true;
+
+        autoStopTimer = 0f;
+    }
+
+    // --------------- AUTO STOP --------------
+    public bool ShouldForceStop()
+    {
+        return isLaunched && autoStopTimer >= stopAfterSeconds;
     }
 }
