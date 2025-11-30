@@ -139,7 +139,7 @@ Rigidbody:
   m_IsKinematic: 0
   m_Interpolate: 0
   m_Constraints: 0
-  m_CollisionDetection: 0
+  m_CollisionDetection: 2
 --- !u!114 &6793948818335939088
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -152,22 +152,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 491b0a70aa8984b98806ffbb7d3a89bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  rb: {fileID: 1667611535655538686}
-  rollForce: 20
-  rollAction:
-    m_Name: Roll
-    m_Type: 0
-    m_ExpectedControlType: 
-    m_Id: 38350992-be66-44cd-92f4-3a1d75a253d5
-    m_Processors: 
-    m_Interactions: 
-    m_SingletonActionBindings:
-    - m_Name: 
-      m_Id: bf1e8eba-513c-42b6-bcad-e642f2bbc353
-      m_Path: <Keyboard>/space
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Roll
-      m_Flags: 0
-    m_Flags: 0
+  minForce: 5
+  maxForce: 100
+  chargeSpeed: 5
+  stopAfterSeconds: 12

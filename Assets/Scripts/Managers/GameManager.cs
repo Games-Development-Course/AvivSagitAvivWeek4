@@ -1,113 +1,93 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-    [SerializeField] private LevelManager levelManager;
-    [SerializeField] private UIManager uiManager;
-    [SerializeField] private BowlingLane bowlingLane;
+    public static GameManager Instance;
 
-    private int currentRoll = 1;
-    private int fallenInFirstRoll = 0;
-    private float ballSpawnTime;
-    private const float MIN_BALL_TRAVEL_TIME = 1.0f;
+    public BowlingLane lane;
+    public LevelManager levelManager;
 
-    private BallController subscribedBallController;
+    private BallController ball;
+    private bool ballLaunched = false;
 
-    private void Start()
+    void Awake()
+    {
+        Instance = this;
+    }
+
+    void Start()
     {
         StartLevel();
     }
 
+    // ================= START LEVEL =================
     public void StartLevel()
     {
-        currentRoll = 1;
-        fallenInFirstRoll = 0;
-
         levelManager.LoadLevel();
-        bowlingLane.SpawnBall();
+        UIManager.Instance.ShowMessage("Aim with the mouse.\nHold SPACE to charge power.\nRelease to roll the ball!");
 
-        SubscribeToCurrentBall();
 
-        uiManager.UpdateLevel(levelManager.CurrentLevelIndex);
-        uiManager.ShowMessage("Roll 1");
+        GameObject b = lane.SpawnBall();
+        ball = b.GetComponent<BallController>();
+
+        ballLaunched = false;
     }
 
-    private void SubscribeToCurrentBall()
+    // ================= BALL LAUNCHED ================
+    public void OnBallLaunched()
     {
-        if (subscribedBallController != null)
-            subscribedBallController.OnBallStopped -= OnBallStopped;
-
-        var ballGO = bowlingLane.CurrentBall;
-        if (ballGO == null)
-        {
-            Debug.LogWarning("[GameManager.SubscribeToCurrentBall] CurrentBall is null");
-            subscribedBallController = null;
-            return;
-        }
-
-        var bc = ballGO.GetComponent<BallController>();
-        if (bc == null)
-        {
-            Debug.LogWarning("[GameManager.SubscribeToCurrentBall] BallController missing on CurrentBall");
-            subscribedBallController = null;
-            return;
-        }
-
-        subscribedBallController = bc;
-        subscribedBallController.OnBallStopped += OnBallStopped;
-        ballSpawnTime = Time.time;
+        ballLaunched = true;
+        levelManager.RegisterThrow();
     }
 
-    public void OnBallStopped()
+    // ================= UPDATE ======================
+    void Update()
     {
-        if (Time.time - ballSpawnTime < MIN_BALL_TRAVEL_TIME)
-            return;
+        if (!ballLaunched) return;
 
-        Debug.Log("Ball has stopped.");
-        int fallen = levelManager.BottleManager.CountFallen();
-
-        levelManager.BottleManager.RemoveFallen();
-        uiManager.UpdateScore(fallen);
-
-        if (currentRoll == 1)
+        if (ball.ShouldForceStop())
         {
-            fallenInFirstRoll = fallen;
+            EndThrow();
+        }
+    }
 
-            if (levelManager.BottleManager.AllCleared())
+    // ================= END THROW ====================
+    private void EndThrow()
+    {
+        ballLaunched = false;
+
+        int fallen = levelManager.bottleManager.CountFallen();
+        UIManager.Instance.SetScore(fallen);  
+        levelManager.bottleManager.RemoveFallen();
+
+        bool cleared = levelManager.bottleManager.AllCleared();
+
+        // ====== CLEAR ALL PINS ======
+        if (cleared)
+        {
+            // Final level completed
+            if (levelManager.IsLastLevel())
             {
-                LevelCompleted();
+                UIManager.Instance.ShowWin();
                 return;
             }
 
-            currentRoll = 2;
-            uiManager.ShowMessage("Roll 2");
+            // Go to next level
+            levelManager.AdvanceLevel();
+            StartLevel();
+            return;
+        }
 
-            bowlingLane.ResetLane();
-            SubscribeToCurrentBall();
+        // ====== NOT CLEARED ALL PINS ======
+        if (levelManager.HasMoreShots())
+        {
+            // throw again
+            lane.ResetBall();
         }
         else
         {
-            if (levelManager.BottleManager.AllCleared())
-            {
-                LevelCompleted();
-            }
-            else
-            {
-                LevelFailed();
-            }
+            // restart same level
+            StartLevel();
         }
-    }
-
-    private void LevelCompleted()
-    {
-        uiManager.ShowMessage("Level Complete!");
-        levelManager.NextLevel();
-        StartLevel();
-    }
-
-    private void LevelFailed()
-    {
-        uiManager.ShowMessage("Try Again!");
-        StartLevel();
     }
 }
